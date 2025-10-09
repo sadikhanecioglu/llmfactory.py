@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-provider-factory"
-version = "0.4.1"
-description = "A unified interface for multiple LLM providers (OpenAI, Anthropic, Gemini, VertexAI, Ollama) supporting both cloud and local LLMs"
+version = "0.5.7"
+description = "A unified interface for multiple LLM providers with image generation support (OpenAI, Anthropic, Gemini, VertexAI, Ollama + DALL-E, Replicate)"
 readme = "README.md"
 license = "MIT"
 authors = [
     {name = "Sadık Hanecioglu", email = "sadik@example.com"}
 ]
-keywords = ["llm", "ai", "openai", "anthropic", "gemini", "ollama", "local-llm", "language-model", "factory-pattern"]
+keywords = ["llm", "ai", "openai", "anthropic", "gemini", "ollama", "local-llm", "language-model", "factory-pattern", "image-generation", "dalle", "replicate", "stable-diffusion"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -38,6 +38,19 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+image = [
+    "replicate>=0.22.0",
+]
+all = [
+    "replicate>=0.22.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "pytest-asyncio>=0.21.0",
