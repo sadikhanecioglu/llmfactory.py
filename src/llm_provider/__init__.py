@@ -21,10 +21,36 @@ Example usage:
     factory = LLMProviderFactory.create_openai()
     response = await factory.generate("Hello, world!")
     ```
+
+Image generation example:
+    ```python
+    from llm_provider import ImageProviderFactory
+    
+    # Create image factory
+    factory = ImageProviderFactory()
+    
+    # Generate image with OpenAI DALL-E
+    provider = factory.create_openai_image(api_key="your-key")
+    response = await provider.generate_image("A beautiful sunset")
+    print(response.urls[0])  # Image URL
+    ```
 """
 
 from .factory import LLMProviderFactory
 from .base_provider import BaseLLMProvider
+
+# Image support
+try:
+    from .image_factory import ImageProviderFactory
+    from .base_image_provider import BaseImageProvider, ImageResponse
+    IMAGE_SUPPORT = True
+except ImportError as e:
+    print(f"Image support import error: {e}")
+    ImageProviderFactory = None
+    BaseImageProvider = None
+    ImageResponse = None
+    IMAGE_SUPPORT = False
+
 from .providers import (
     OpenAIProvider,
     AnthropicProvider,
@@ -62,9 +88,9 @@ from .utils import (
     logger,
 )
 
-__version__ = "0.1.0"
-__author__ = "Your Name"
-__email__ = "your.email@example.com"
+__version__ = "0.5.7"
+__author__ = "Sadık Hanecioglu"
+__email__ = "sadik@example.com"
 
 __all__ = [
     # Main factory
@@ -110,3 +136,11 @@ __all__ = [
     # Utilities
     "logger",
 ]
+
+# Add image support to __all__ if available
+if IMAGE_SUPPORT:
+    __all__.extend([
+        "ImageProviderFactory",
+        "BaseImageProvider", 
+        "ImageResponse",
+    ])

@@ -97,18 +97,16 @@ class VertexAIProvider(BaseLLMProvider):
             raise InvalidConfigurationError("Google Cloud Project ID gereklidir.", "vertexai")
         
         try:
-            # Vertex AI'yi initialize et
-            import vertexai
-            vertexai.init(project=self.project_id, location=self.location)
-            logger.info(f"✅ Vertex AI başlatıldı: {self.project_id}, location: {self.location}")
-
-            # Mistral modelleri için özel rawPredict kullanılacak
-            if "mistral" not in self.model_name.lower():
-                from vertexai.generative_models import GenerativeModel
-                self.model = GenerativeModel(self.model_name)
-                logger.info(f"✅ Gemini model başlatıldı: {self.model_name}")
-            else:
-                logger.info(f"✅ Mistral model için rawPredict API kullanılacak: {self.model_name}")
+            # Google Gen AI Client kullan (yeni API)
+            from google import genai
+            
+            self.client = genai.Client(
+                vertexai=True,
+                project=self.project_id,
+                location=self.location
+            )
+            
+            logger.info(f"✅ Gen AI Client başlatıldı: {self.project_id}, location: {self.location}, model: {self.model_name}")
             
         except Exception as e:
             if "authentication" in str(e).lower() or "credentials" in str(e).lower():
@@ -153,9 +151,13 @@ class VertexAIProvider(BaseLLMProvider):
             role = msg.get("role", "user")
             content = msg.get("content", "")
             
+            # System mesajları skip et (zaten conversation başında eklendi)
+            if role == "system":
+                continue
+            
             # Gen AI SDK'da 'user' ve 'model' rolleri kullanılır.
             # Sizin MessageRole tanımınıza göre bir eşleme yapalım.
-            if role in ["user", "system", "tool"]:
+            if role in ["user", "tool"]:
                 genai_role = "user"
             elif role in ["assistant"]:
                 genai_role = "model"
@@ -165,7 +167,7 @@ class VertexAIProvider(BaseLLMProvider):
             genai_messages.append(
                 genai_types.Content(
                     role=genai_role,
-                    parts=[genai_types.Part.from_text(content)]
+                    parts=[genai_types.Part(text=content)]
                 )
             )
             
@@ -195,12 +197,78 @@ class VertexAIProvider(BaseLLMProvider):
                         "content": msg.content
                     })
             
-            # Use the existing generate_response method
-            response_text = await self.generate_response(
-                text=request.prompt,
-                system_prompt=getattr(request, 'system_prompt', None),
-                history=history
-            )
+            # Mistral modelleri için özel rawPredict API kullan
+            if "mistral" in self.model_name.lower():
+                # Get credentials
+                credentials, project_id = google.auth.default(
+                    scopes=['https://www.googleapis.com/auth/cloud-platform']
+                )
+                credentials.refresh(Request())
+                
+                # Build endpoint URL
+                endpoint = self._build_mistral_endpoint_url()
+                
+                # Prepare messages
+                messages = []
+                system_prompt = getattr(request, 'system_prompt', None)
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                
+                if history:
+                    for msg in history:
+                        messages.append({
+                            "role": msg.get("role", "user"),
+                            "content": msg.get("content", "")
+                        })
+                
+                messages.append({"role": "user", "content": request.prompt})
+                
+                # Prepare request payload
+                payload = {
+                    "model": self.model_name,
+                    "messages": messages,
+                    "max_tokens": self.max_output_tokens,
+                    "temperature": self.temperature,
+                    "stream": False
+                }
+                
+                headers = {
+                    "Authorization": f"Bearer {credentials.token}",
+                    "Content-Type": "application/json"
+                }
+                
+                logger.info(f"🚀 Mistral API çağrısı: {endpoint}")
+                
+                # Make HTTP request
+                async with httpx.AsyncClient() as client:
+                    mistral_response = await client.post(
+                        endpoint,
+                        json=payload,
+                        headers=headers,
+                        timeout=30.0
+                    )
+                    
+                logger.info(f"✅ Mistral API response: {mistral_response.status_code}")
+                    
+                if mistral_response.status_code != 200:
+                    logger.error(f"❌ Mistral API error: {mistral_response.text}")
+                    raise APIError(f"Mistral API error: {mistral_response.status_code} - {mistral_response.text}", "vertexai")
+                    
+                result = mistral_response.json()
+                
+                if "choices" in result and len(result["choices"]) > 0:
+                    response_text = result["choices"][0]["message"]["content"]
+                else:
+                    logger.error(f"❌ Unexpected Mistral response: {result}")
+                    raise GenerationError("Mistral API response format unexpected", "vertexai")
+                
+            else:
+                # Gemini modelleri için standart Gen AI Client API
+                response_text = await self.generate_response(
+                    text=request.prompt,
+                    system_prompt=getattr(request, 'system_prompt', None),
+                    history=history
+                )
             
             return GenerationResponse(
                 content=response_text,
@@ -218,73 +286,56 @@ class VertexAIProvider(BaseLLMProvider):
             raise GenerationError(f"VertexAI generation failed: {str(e)}", "vertexai")
 
     async def generate_response(self, text: str, system_prompt: str = None, history: List[Dict] = None) -> str:
-        """Gen AI ile cevap oluştur (history destekli)"""
+        """Gen AI ile cevap oluştur (Gemini modelleri için)"""
         try:
             await self.ensure_initialized()
             
-            # Mistral modelleri için özel API kullan (Eski kodu koruyoruz)
-            if "mistral" in self.model_name.lower():
-                messages = []
-                
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                
-                if history:
-                    for msg in history:
-                        messages.append({
-                            "role": msg.get("role", "user"), 
-                            "content": msg.get("content", "")
-                        })
-                
-                messages.append({"role": "user", "content": text})
-                
-                return await self._generate_mistral_response(messages)
+            # Basit content listesi oluştur
+            contents = []
             
-            # Gemini/Diğer Gen AI modelleri için YENİ yöntem
-            if not self.model:
-                raise ValueError("Gen AI model başlatılamadı")
+            # System prompt varsa başa ekle
+            if system_prompt:
+                contents.append(f"System: {system_prompt}")
             
-            # Conversation geçmişini Gen AI Content formatına dönüştür
-            conversation_history = history if history else []
-            # Son kullanıcı mesajını ekle
-            conversation_history.append({"role": "user", "content": text})
+            # History varsa ekle
+            if history:
+                for msg in history:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "system":
+                        continue  # System zaten eklendi
+                    contents.append(f"{role.capitalize()}: {content}")
             
-            genai_content = self._convert_messages_to_genai(conversation_history)
+            # Ana mesajı ekle
+            contents.append(text)
             
-            logger.info(f"Gen AI'ya gönderilen mesaj sayısı: {len(genai_content)}")
+            # Generation config
+            config = {
+                "temperature": self.temperature,
+                "max_output_tokens": self.max_output_tokens,
+            }
             
-            # Generation Config hazırla
-            generation_config = genai_types.GenerateContentConfig(
-                temperature=self.temperature,
-                max_output_tokens=self.max_output_tokens,
-                # system_instruction: Gen AI SDK'da system prompt buraya konulur
-                system_instruction=system_prompt if system_prompt else "Sen yardımcı bir asistansın. Kısa ve anlaşılır cevaplar ver."
+            logger.info(f"Gen AI'ya gönderiliyor: {len(contents)} content")
+            
+            # Gen AI Client ile generate et
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=config
             )
             
-            # Gen AI'ye istek gönder
-            response = self.model.generate_content(
-                genai_content,
-                config=generation_config
-            )
-            
-            # Cevabı al
+            # Response'u parse et
             if response and response.text:
                 answer = response.text.strip()
                 logger.info(f"✅ Gen AI cevabı alındı: {len(answer)} karakter")
                 return answer
             else:
                 logger.warning("⚠️ Gen AI boş cevap döndü")
-                # Detaylı hata kontrolü eklenebilir (örneğin safety filter nedeniyle engellendi mi?)
                 return "Üzgünüm, şu anda bir cevap üretemedim."
                 
         except Exception as e:
-            logger.error(f"❌ Gen AI LLM hatası: {e}")
-            raise GenerationError(f"Gen AI error: {str(e)}", "genai")
-            
-    # generate ve stream_generate metodları artık üstteki generate_response metodunu 
-    # Gen AI SDK'ya uygun olarak çağırdığı için güncellemeye gerek kalmamıştır.
-    
-    # ... (generate ve stream_generate metotları aynı kalabilir)
+            logger.error(f"❌ Gen AI error: {e}")
+            raise GenerationError(f"Gen AI error: {str(e)}", "vertexai")
 
     async def stream_generate(self, request: GenerationRequest) -> AsyncIterator[StreamChunk]:
         """Stream generate response using Gen AI."""
@@ -320,20 +371,23 @@ class VertexAIProvider(BaseLLMProvider):
                 else:
                     raise GenerationError("Prompt or messages must be provided", "genai")
                 
+                # System prompt'u conversation başına ekle (eğer henüz yoksa)
+                if system_prompt and (not conversation_history or conversation_history[0].get("role") != "system"):
+                    conversation_history.insert(0, {"role": "system", "content": system_prompt})
+                
                 # Son kullanıcı mesajını ekle
                 conversation_history.append({"role": "user", "content": text})
                 genai_content = self._convert_messages_to_genai(conversation_history)
                 
-                # Config
-                generation_config = genai_types.GenerateContentConfig(
-                    temperature=self.temperature,
-                    max_output_tokens=self.max_output_tokens,
-                    system_instruction=system_prompt
-                )
+                # Config - Dictionary format kullan
+                generation_config = {
+                    "temperature": self.temperature,
+                    "max_output_tokens": self.max_output_tokens,
+                }
                 
                 response_stream = self.model.generate_content_stream(
                     genai_content,
-                    config=generation_config
+                    generation_config=generation_config
                 )
                 
                 async for chunk in response_stream:

@@ -58,3 +58,8 @@ class LLMProviderLogger:
 
 # Global logger instance
 logger = LLMProviderLogger()
+
+
+def get_logger(name: str = "llm_provider") -> LLMProviderLogger:
+    """Get logger instance for given name."""
+    return LLMProviderLogger(name)

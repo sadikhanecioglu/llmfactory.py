@@ -6,6 +6,7 @@ A unified, extensible Python library for interacting with multiple Large Languag
 
 - **Unified Interface**: Single API for multiple LLM providers
 - **Cloud & Local LLMs**: Support for both cloud-based and local LLM providers
+- **Image Generation**: DALL-E and Replicate image generation support
 - **Async Support**: Full async/await support for better performance
 - **Streaming**: Real-time streaming responses from all providers
 - **Type Safety**: Complete type hints and Pydantic models
@@ -16,6 +17,8 @@ A unified, extensible Python library for interacting with multiple Large Languag
 
 ## 🔌 Supported Providers
 
+### Text Generation
+
 | Provider | Models | Features | Type |
 |----------|--------|----------|------|
 | **OpenAI** | GPT-3.5, GPT-4, GPT-4o | Generate, Stream, Conversation | Cloud |
@@ -23,6 +26,13 @@ A unified, extensible Python library for interacting with multiple Large Languag
 | **Google Gemini** | Gemini Pro, Gemini Flash | Generate, Stream, Conversation | Cloud |
 | **VertexAI** | Mistral, Gemini | Generate, Conversation | Cloud |
 | **Ollama** | Llama, CodeLlama, Mistral, etc. | Generate, Stream, Conversation | Local |
+
+### Image Generation
+
+| Provider | Models | Features | Type |
+|----------|--------|----------|------|
+| **OpenAI** | DALL-E 2, DALL-E 3 | Text-to-Image, HD Quality, Style Control | Cloud |
+| **Replicate** | Stable Diffusion, InstantID | Text-to-Image, Reference Images, Custom Models | Cloud |
 
 ## 🚀 Quick Start
 
@@ -55,6 +65,65 @@ async def main():
     print(f"Ollama: {response.content}")
 
 asyncio.run(main())
+```
+
+## 🎨 Image Generation
+
+### Basic Image Generation
+
+```python
+import asyncio
+from llm_provider import ImageProviderFactory
+
+async def image_example():
+    # OpenAI DALL-E
+    factory = ImageProviderFactory()
+    openai_image = factory.create_openai_image(api_key="your-openai-key")
+    
+    response = await openai_image.generate_image(
+        prompt="A futuristic city with flying cars at sunset",
+        size="1024x1024",
+        quality="hd",
+        model="dall-e-3"
+    )
+    print(f"Image URL: {response.urls[0]}")
+    
+    # Replicate
+    replicate_image = factory.create_replicate_image(api_token="your-replicate-token")
+    
+    response = await replicate_image.generate_image(
+        prompt="A cyberpunk street scene with neon lights",
+        model="stability-ai/sdxl",
+        width=1024,
+        height=1024
+    )
+    print(f"Image URL: {response.urls[0]}")
+
+asyncio.run(image_example())
+```
+
+### Combined Text + Image Generation
+
+```python
+async def combined_example():
+    # Generate prompt with LLM
+    llm_factory = LLMProviderFactory()
+    llm = llm_factory.create_openai(api_key="your-key")
+    
+    prompt_response = await llm.generate(
+        "Create a detailed artistic prompt for a fantasy landscape"
+    )
+    
+    # Use generated prompt for image
+    image_factory = ImageProviderFactory()
+    image_provider = image_factory.create_openai_image(api_key="your-key")
+    
+    image_response = await image_provider.generate_image(
+        prompt=prompt_response.content,
+        size="1024x1024"
+    )
+    
+    print(f"Generated image: {image_response.urls[0]}")
 ```
 
 ## 📖 Detailed Usage

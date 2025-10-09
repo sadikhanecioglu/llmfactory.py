@@ -6,6 +6,17 @@ from .gemini_provider import GeminiProvider
 from .vertexai_provider import VertexAIProvider
 from .ollama_provider import OllamaProvider
 
+# Image providers
+try:
+    from .openai_image_provider import OpenAIImageProvider
+except ImportError:
+    OpenAIImageProvider = None
+
+try:
+    from .replicate_image_provider import ReplicateImageProvider
+except ImportError:
+    ReplicateImageProvider = None
+
 # Create aliases for easier import
 OpenAI = OpenAIProvider
 Anthropic = AnthropicProvider
@@ -24,4 +35,7 @@ __all__ = [
     "Gemini",
     "VertexAI",
     "Ollama",
+    # Image providers
+    "OpenAIImageProvider",
+    "ReplicateImageProvider",
 ]

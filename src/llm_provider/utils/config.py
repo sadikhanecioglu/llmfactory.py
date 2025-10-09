@@ -145,5 +145,27 @@ class OllamaConfig(ProviderConfig):
         )
 
 
+class OpenAIImageConfig(ProviderConfig):
+    """OpenAI DALL-E image configuration"""
+    api_key: str
+    model: str = "dall-e-3"
+    size: str = "1024x1024"
+    quality: str = "standard"
+    style: str = "vivid"
+    n: int = 1
+    timeout: int = 60
+
+
+class ReplicateImageConfig(ProviderConfig):
+    """Replicate image configuration"""
+    api_key: str
+    model: str = "stability-ai/stable-diffusion"
+    version: Optional[str] = None
+    width: int = 1024
+    height: int = 1024
+    steps: int = 50
+    timeout: int = 120
+
+
 # Global config manager
 config_manager = ConfigManager()
