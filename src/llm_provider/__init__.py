@@ -88,7 +88,7 @@ from .utils import (
     logger,
 )
 
-__version__ = "0.5.7"
+__version__ = "0.5.9"
 __author__ = "Sadık Hanecioglu"
 __email__ = "sadik@example.com"
 
