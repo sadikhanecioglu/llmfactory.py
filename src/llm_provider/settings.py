@@ -1,8 +1,9 @@
 """Settings and data models for LLM Provider Factory."""
 
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, BinaryIO
 from pydantic import BaseModel, Field, model_validator
 from enum import Enum
+from pathlib import Path
 
 
 class MessageRole(str, Enum):
@@ -80,3 +81,47 @@ class ProviderInfo(BaseModel):
     supported_models: List[str]
     capabilities: List[str]
     is_available: bool = True
+
+
+class SpeechRequest(BaseModel):
+    """Request for speech-to-text transcription."""
+    
+    audio_data: Union[bytes, str, Path] = Field(..., description="Audio data, file path, or file URL")
+    language: Optional[str] = Field(default=None, description="Language code (e.g., 'en', 'tr')")
+    model: Optional[str] = Field(default=None, description="Model to use for transcription")
+    
+    # Audio processing options
+    format: Optional[str] = Field(default=None, description="Audio format (auto-detected if not specified)")
+    sample_rate: Optional[int] = Field(default=None, description="Audio sample rate in Hz")
+    
+    # Transcription options
+    timestamps: bool = Field(default=False, description="Include word-level timestamps")
+    word_confidence: bool = Field(default=False, description="Include word confidence scores")
+    speaker_labels: bool = Field(default=False, description="Enable speaker diarization")
+    punctuation: bool = Field(default=True, description="Add punctuation to transcription")
+    
+    # Provider-specific options
+    provider_options: Optional[Dict[str, Any]] = Field(default=None, description="Provider-specific parameters")
+    
+    class Config:
+        extra = "allow"
+
+
+class SpeechResponse(BaseModel):
+    """Response from speech-to-text transcription."""
+    
+    text: str = Field(..., description="Transcribed text")
+    language: Optional[str] = Field(default=None, description="Detected or specified language")
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Overall confidence score")
+    
+    # Detailed results
+    words: Optional[List[Dict[str, Any]]] = Field(default=None, description="Word-level results with timestamps")
+    segments: Optional[List[Dict[str, Any]]] = Field(default=None, description="Sentence/phrase segments")
+    speakers: Optional[List[Dict[str, Any]]] = Field(default=None, description="Speaker diarization results")
+    
+    # Metadata
+    duration: Optional[float] = Field(default=None, description="Audio duration in seconds")
+    provider: Optional[str] = Field(default=None, description="Provider used")
+    model: Optional[str] = Field(default=None, description="Model used")
+    processing_time: Optional[float] = Field(default=None, description="Processing time in seconds")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")

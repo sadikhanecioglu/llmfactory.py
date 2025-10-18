@@ -51,6 +51,17 @@ except ImportError as e:
     ImageResponse = None
     IMAGE_SUPPORT = False
 
+# Speech support
+try:
+    from .speech_factory import SpeechFactory
+    from .base_speech_provider import BaseSpeechProvider
+    SPEECH_SUPPORT = True
+except ImportError as e:
+    print(f"Speech support import error: {e}")
+    SpeechFactory = None
+    BaseSpeechProvider = None
+    SPEECH_SUPPORT = False
+
 from .providers import (
     OpenAIProvider,
     AnthropicProvider,
@@ -66,6 +77,8 @@ from .settings import (
     Message,
     MessageRole,
     ProviderInfo,
+    SpeechRequest,
+    SpeechResponse,
 )
 from .utils import (
     # Configurations
@@ -88,7 +101,7 @@ from .utils import (
     logger,
 )
 
-__version__ = "0.5.9"
+__version__ = "0.6.0"
 __author__ = "Sadık Hanecioglu"
 __email__ = "sadik@example.com"
 
@@ -114,6 +127,8 @@ __all__ = [
     "Message",
     "MessageRole",
     "ProviderInfo",
+    "SpeechRequest",
+    "SpeechResponse",
     
     # Configurations
     "ProviderConfig",
@@ -143,4 +158,11 @@ if IMAGE_SUPPORT:
         "ImageProviderFactory",
         "BaseImageProvider", 
         "ImageResponse",
+    ])
+
+# Add speech support to __all__ if available
+if SPEECH_SUPPORT:
+    __all__.extend([
+        "SpeechFactory",
+        "BaseSpeechProvider",
     ])

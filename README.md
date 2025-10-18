@@ -7,6 +7,7 @@ A unified, extensible Python library for interacting with multiple Large Languag
 - **Unified Interface**: Single API for multiple LLM providers
 - **Cloud & Local LLMs**: Support for both cloud-based and local LLM providers
 - **Image Generation**: DALL-E and Replicate image generation support
+- **Speech-to-Text**: OpenAI Whisper and Google Cloud Speech-to-Text support
 - **Async Support**: Full async/await support for better performance
 - **Streaming**: Real-time streaming responses from all providers
 - **Type Safety**: Complete type hints and Pydantic models
@@ -33,6 +34,13 @@ A unified, extensible Python library for interacting with multiple Large Languag
 |----------|--------|----------|------|
 | **OpenAI** | DALL-E 2, DALL-E 3 | Text-to-Image, HD Quality, Style Control | Cloud |
 | **Replicate** | Stable Diffusion, InstantID | Text-to-Image, Reference Images, Custom Models | Cloud |
+
+### Speech-to-Text
+
+| Provider | Models | Features | Type |
+|----------|--------|----------|------|
+| **OpenAI** | Whisper | Multi-language, Timestamps, Word Confidence | Cloud |
+| **Google Cloud** | Speech-to-Text v2 | Real-time, Speaker Diarization, Punctuation | Cloud |
 
 ## 🚀 Quick Start
 
@@ -65,6 +73,85 @@ async def main():
     print(f"Ollama: {response.content}")
 
 asyncio.run(main())
+```
+
+## 🎤 Speech-to-Text
+
+### Basic Speech Transcription
+
+```python
+import asyncio
+from llm_provider import SpeechFactory, SpeechRequest
+
+async def speech_example():
+    # OpenAI Whisper
+    factory = SpeechFactory()
+    openai_speech = factory.create_openai_speech(api_key="your-openai-key")
+    
+    # Basic transcription
+    request = SpeechRequest(
+        audio_data="/path/to/audio.mp3",
+        language="en",
+        provider_options={"response_format": "text"}
+    )
+    
+    response = await openai_speech.transcribe(request)
+    print(f"Transcription: {response.text}")
+    
+    # Advanced transcription with timestamps
+    detailed_request = SpeechRequest(
+        audio_data="/path/to/audio.wav", 
+        language="auto",
+        timestamps=True,
+        word_confidence=True,
+        provider_options={
+            "response_format": "verbose_json",
+            "temperature": 0.2
+        }
+    )
+    
+    response = await openai_speech.transcribe(detailed_request)
+    print(f"Text: {response.text}")
+    
+    # Print word-level timestamps
+    for word in response.words:
+        print(f"{word.word}: {word.start}s - {word.end}s (confidence: {word.confidence})")
+
+asyncio.run(speech_example())
+```
+
+### Google Cloud Speech-to-Text
+
+```python
+async def google_speech_example():
+    factory = SpeechFactory()
+    google_speech = factory.create_google_speech(credentials_path="/path/to/credentials.json")
+    
+    # Advanced transcription with speaker diarization
+    request = SpeechRequest(
+        audio_data="/path/to/meeting.wav",
+        language="en-US",
+        speaker_labels=True,
+        punctuation=True,
+        word_confidence=True,
+        provider_options={
+            "min_speaker_count": 2,
+            "max_speaker_count": 5
+        }
+    )
+    
+    response = await google_speech.transcribe(request)
+    
+    # Print transcript with speaker labels
+    print(f"Full transcript: {response.text}")
+    
+    for segment in response.segments:
+        speaker = f"Speaker {segment.speaker_tag}" if segment.speaker_tag else "Unknown"
+        print(f"{speaker}: {segment.text}")
+        print(f"  Time: {segment.start_time}s - {segment.end_time}s")
+        print(f"  Confidence: {segment.confidence}")
+
+asyncio.run(google_speech_example())
 ```
 
 ## 🎨 Image Generation

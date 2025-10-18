@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-provider-factory"
-version = "0.5.9"
-description = "A unified interface for multiple LLM providers with image generation support (OpenAI, Anthropic, Gemini, VertexAI, Ollama + DALL-E, Replicate)"
+version = "0.6.0"
+description = "A unified interface for multiple LLM providers with image generation and speech-to-text support (OpenAI, Anthropic, Gemini, VertexAI, Ollama + DALL-E, Replicate, Whisper, Google Speech)"
 readme = "README.md"
 license = "MIT"
 authors = [
@@ -45,6 +45,9 @@ ollama = [
 image = [
     "replicate>=0.22.0",
 ]
+speech = [
+    "google-cloud-speech>=2.18.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -58,6 +61,7 @@ all = [
     "google-generativeai>=0.3.0",
     "google-cloud-aiplatform>=1.0.0",
     "google-genai>=1.0.0",
+    "google-cloud-speech>=2.18.0",
     "replicate>=0.22.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
