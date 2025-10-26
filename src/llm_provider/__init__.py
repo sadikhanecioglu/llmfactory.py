@@ -79,6 +79,9 @@ from .settings import (
     ProviderInfo,
     SpeechRequest,
     SpeechResponse,
+    ToolFunction,
+    ToolCall,
+    ToolResult,
 )
 from .utils import (
     # Configurations
@@ -88,6 +91,9 @@ from .utils import (
     GeminiConfig,
     ConfigManager,
     config_manager,
+    # Tools
+    run_with_tools,
+    run_with_tools_async,
     # Exceptions
     LLMProviderError,
     ProviderNotFoundError,
@@ -101,7 +107,7 @@ from .utils import (
     logger,
 )
 
-__version__ = "0.6.0"
+__version__ = "0.7.3"
 __author__ = "Sadık Hanecioglu"
 __email__ = "sadik@example.com"
 
@@ -129,6 +135,9 @@ __all__ = [
     "ProviderInfo",
     "SpeechRequest",
     "SpeechResponse",
+    "ToolFunction",
+    "ToolCall",
+    "ToolResult",
     
     # Configurations
     "ProviderConfig",
@@ -137,6 +146,8 @@ __all__ = [
     "GeminiConfig",
     "ConfigManager",
     "config_manager",
+    "run_with_tools",
+    "run_with_tools_async",
     
     # Exceptions
     "LLMProviderError",

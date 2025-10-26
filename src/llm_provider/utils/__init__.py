@@ -12,6 +12,7 @@ from .config import (
     ConfigManager,
     config_manager,
 )
+from .tools import run_with_tools, run_with_tools_async
 
 __all__ = [
     # Exceptions
@@ -34,4 +35,7 @@ __all__ = [
     "OllamaConfig",
     "ConfigManager",
     "config_manager",
+    # Tools
+    "run_with_tools",
+    "run_with_tools_async",
 ]

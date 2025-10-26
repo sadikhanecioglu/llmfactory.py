@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-provider-factory"
-version = "0.6.0"
-description = "A unified interface for multiple LLM providers with image generation and speech-to-text support (OpenAI, Anthropic, Gemini, VertexAI, Ollama + DALL-E, Replicate, Whisper, Google Speech)"
+version = "0.7.3"
+description = "A unified interface for multiple LLM providers with image generation, speech-to-text, and function calling (OpenAI, Anthropic, Gemini, VertexAI, Ollama + DALL-E, Replicate, Whisper, Google Speech, Tools)"
 readme = "README.md"
 license = "MIT"
 authors = [

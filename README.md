@@ -8,6 +8,7 @@ A unified, extensible Python library for interacting with multiple Large Languag
 - **Cloud & Local LLMs**: Support for both cloud-based and local LLM providers
 - **Image Generation**: DALL-E and Replicate image generation support
 - **Speech-to-Text**: OpenAI Whisper and Google Cloud Speech-to-Text support
+- **Tools / Function Calling**: Unified tools API (OpenAI, Anthropic, Gemini-ready)
 - **Async Support**: Full async/await support for better performance
 - **Streaming**: Real-time streaming responses from all providers
 - **Type Safety**: Complete type hints and Pydantic models
@@ -118,6 +119,99 @@ async def speech_example():
         print(f"{word.word}: {word.start}s - {word.end}s (confidence: {word.confidence})")
 
 asyncio.run(speech_example())
+```
+
+## 🧰 Tools (Function Calling)
+
+Modelinize fonksiyonlar (tools) tanımlayıp çağırmasına izin verin.
+
+```python
+import asyncio
+from llm_provider import LLMProviderFactory, OpenAIConfig, ToolFunction
+from llm_provider.utils import run_with_tools_async
+
+calculator = ToolFunction(
+    name="calculator",
+    description="Evaluate arithmetic expressions",
+    parameters={
+        "type": "object",
+        "properties": {"expression": {"type": "string"}},
+        "required": ["expression"],
+    },
+)
+
+def execute_tool(name: str, args: dict):
+    if name == "calculator":
+        try:
+            return str(eval(args["expression"], {"__builtins__": None}, {}))
+        except Exception as e:
+            return f"Error: {e}"
+    return "Unknown tool"
+
+async def main():
+    provider = LLMProviderFactory().create_openai(OpenAIConfig(api_key="your-key", model="gpt-4o-mini"))
+    response = await run_with_tools_async(
+        provider,
+        prompt="Compute (12+30)*2 using the calculator tool",
+        tools=[calculator],
+        execute_tool=execute_tool,
+        max_iterations=2,
+    )
+    print(response.content)
+
+asyncio.run(main())
+```
+
+### VertexAI Gemini ile Tools
+
+```python
+import asyncio
+from llm_provider import LLMProviderFactory, VertexAIConfig, ToolFunction
+from llm_provider.utils import run_with_tools_async
+
+# Hava durumu tool'u
+weather_tool = ToolFunction(
+    name="get_weather",
+    description="Belirtilen şehir için hava durumu bilgisi döndürür",
+    parameters={
+        "type": "object",
+        "properties": {
+            "city": {
+                "type": "string",
+                "description": "Şehir ismi (örn: Istanbul, Ankara)"
+            }
+        },
+        "required": ["city"]
+    },
+)
+
+def execute_tool(name: str, args: dict):
+    if name == "get_weather":
+        city = args.get("city", "")
+        # Gerçek uygulamada API çağrısı yapılır
+        return f"{city} için hava durumu: 22°C, Güneşli"
+    return "Bilinmeyen tool"
+
+async def main():
+    config = VertexAIConfig(
+        project_id="your-project-id",
+        location="us-central1",
+        model="gemini-2.0-flash-exp"
+    )
+    
+    provider = LLMProviderFactory().create_vertexai(config)
+    
+    response = await run_with_tools_async(
+        provider,
+        prompt="İstanbul'da hava nasıl?",
+        tools=[weather_tool],
+        execute_tool=execute_tool,
+        max_iterations=3,
+    )
+    
+    print(response.content)
+
+asyncio.run(main())
 ```
 
 ### Google Cloud Speech-to-Text
