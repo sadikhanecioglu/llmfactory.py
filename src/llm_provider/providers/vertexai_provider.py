@@ -24,7 +24,7 @@ from ..utils.logger import logger
 
 # Import Google Gen AI SDK with proper error handling
 try:
-    # YENİ: Google Gen AI SDK - sadece Client'ı kullan
+    # YENİ: Google Gen AI SDK - Client ve types (SafetySetting için)
     from google.genai import Client
     from google.genai import types as genai_types
     import google.auth
@@ -163,6 +163,30 @@ class VertexAIProvider(BaseLLMProvider):
             )
         return genai_messages
 
+    def _sanitize_prompt_for_gemini(self, text: str) -> str:
+        """
+        Gemini'nin PROHIBITED_CONTENT hatası vermemesi için prompt'u temizle.
+        Image URL'leri ve potansiyel problemli içerikleri maskele.
+        """
+        import re
+        
+        if not text:
+            return text
+        
+        # Image URL'lerini placeholder ile değiştir
+        # https://example.com/image.jpg -> [IMAGE_URL]
+        text = re.sub(
+            r'https?://[^\s<>"{}|\\^`\[\]]+\.(?:jpg|jpeg|png|gif|webp|svg|bmp|ico)',
+            '[IMAGE_URL]',
+            text,
+            flags=re.IGNORECASE
+        )
+        
+        # Genel URL'leri de temizle (opsiyonel - sadece gerekirse)
+        # text = re.sub(r'https?://[^\s]+', '[URL]', text)
+        
+        return text
+
     def _convert_tools_to_genai(
         self, tools: Optional[List[ToolFunction]]
     ) -> Optional[List[Any]]:
@@ -254,6 +278,10 @@ class VertexAIProvider(BaseLLMProvider):
                         content = msg.get("content", "")
                         if not content or role == "system":
                             continue
+                        
+                        # 🔥 Image URL'leri temizle
+                        content = self._sanitize_prompt_for_gemini(content)
+                        
                         genai_role = (
                             "model" if role in ["assistant", "model"] else "user"
                         )
@@ -264,9 +292,11 @@ class VertexAIProvider(BaseLLMProvider):
                         )
 
                 if request.prompt:
+                    # 🔥 Image URL'leri temizle
+                    sanitized_prompt = self._sanitize_prompt_for_gemini(request.prompt)
                     contents.append(
                         genai_types.Content(
-                            role="user", parts=[genai_types.Part(text=request.prompt)]
+                            role="user", parts=[genai_types.Part(text=sanitized_prompt)]
                         )
                     )
 
@@ -282,6 +312,32 @@ class VertexAIProvider(BaseLLMProvider):
                     "temperature": self.temperature,
                     "max_output_tokens": self.max_output_tokens,
                 }
+
+                # 🔥 SAFETY SETTINGS: BLOCK_NONE - Hiçbir içeriği engelleme
+                # PROHIBITED_CONTENT hatalarını önlemek için safety filters devre dışı
+                try:
+                    safety_settings = [
+                        genai_types.SafetySetting(
+                            category="HARM_CATEGORY_HARASSMENT",
+                            threshold="BLOCK_NONE"
+                        ),
+                        genai_types.SafetySetting(
+                            category="HARM_CATEGORY_HATE_SPEECH",
+                            threshold="BLOCK_NONE"
+                        ),
+                        genai_types.SafetySetting(
+                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            threshold="BLOCK_NONE"
+                        ),
+                        genai_types.SafetySetting(
+                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                            threshold="BLOCK_NONE"
+                        ),
+                    ]
+                    config_dict["safety_settings"] = safety_settings
+                    logger.info(f"✅ Safety settings added: BLOCK_NONE - All filters disabled")
+                except Exception as safety_error:
+                    logger.warning(f"⚠️ Could not add safety settings: {safety_error}")
 
                 logger.info(
                     f"🔍 DEBUG - request.tools type: {type(request.tools)}, value: {request.tools}"
@@ -324,6 +380,15 @@ class VertexAIProvider(BaseLLMProvider):
                 
                 try:
                     response = self.client.models.generate_content(**generate_kwargs)
+                    
+                    # 🔍 DEBUG: Log yanıtın tam yapısı
+                    logger.info(f"🔍 DEBUG - Response type: {type(response)}")
+                    logger.info(f"🔍 DEBUG - Response has candidates: {hasattr(response, 'candidates')}")
+                    if hasattr(response, 'candidates'):
+                        logger.info(f"🔍 DEBUG - Candidates count: {len(response.candidates) if response.candidates else 0}")
+                    if hasattr(response, 'prompt_feedback'):
+                        logger.info(f"🔍 DEBUG - Prompt feedback: {response.prompt_feedback}")
+                    
                 except Exception as api_error:
                     logger.error(f"❌ API call failed with error: {type(api_error).__name__}: {api_error}")
                     logger.error(f"❌ generate_kwargs that caused error: {generate_kwargs}")
@@ -333,10 +398,34 @@ class VertexAIProvider(BaseLLMProvider):
                 response_text = ""
                 tool_calls_list: List[ToolCall] = []
 
+                # 🔥 IMPROVED ERROR HANDLING: Gemini'den yanıt gelmezse detaylı hata ver
                 if not response.candidates:
-                    raise GenerationError(
-                        "No candidates returned from Gemini", "vertexai"
-                    )
+                    error_msg = "No candidates returned from Gemini"
+                    
+                    # Prompt'u logla (engellenme sebebini anlamak için)
+                    logger.error(f"❌ BLOCKED PROMPT: {request.prompt[:500]}...")
+                    if hasattr(request, 'system_prompt') and request.system_prompt:
+                        logger.error(f"❌ SYSTEM PROMPT: {request.system_prompt[:200]}...")
+                    
+                    # Prompt feedback varsa kontrol et (block reason)
+                    if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
+                        feedback = response.prompt_feedback
+                        logger.error(f"❌ Prompt feedback: {feedback}")
+                        
+                        if hasattr(feedback, 'block_reason') and feedback.block_reason:
+                            error_msg += f" - Blocked: {feedback.block_reason}"
+                            logger.error(f"❌ Block reason details: {feedback.block_reason}")
+                            
+                        if hasattr(feedback, 'safety_ratings') and feedback.safety_ratings:
+                            logger.error(f"❌ Safety ratings: {feedback.safety_ratings}")
+                            for rating in feedback.safety_ratings:
+                                logger.error(f"   - {rating.category}: {rating.probability}")
+                    
+                    # Yanıtın tüm detaylarını logla
+                    logger.error(f"❌ Full response object attributes: {dir(response)}")
+                    logger.error(f"❌ Response details: {response}")
+                    
+                    raise GenerationError(error_msg, "vertexai")
 
                 first_candidate = response.candidates[0]
 
