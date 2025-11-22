@@ -169,22 +169,22 @@ class VertexAIProvider(BaseLLMProvider):
         Image URL'leri ve potansiyel problemli içerikleri maskele.
         """
         import re
-        
+
         if not text:
             return text
-        
+
         # Image URL'lerini placeholder ile değiştir
         # https://example.com/image.jpg -> [IMAGE_URL]
         text = re.sub(
             r'https?://[^\s<>"{}|\\^`\[\]]+\.(?:jpg|jpeg|png|gif|webp|svg|bmp|ico)',
-            '[IMAGE_URL]',
+            "[IMAGE_URL]",
             text,
-            flags=re.IGNORECASE
+            flags=re.IGNORECASE,
         )
-        
+
         # Genel URL'leri de temizle (opsiyonel - sadece gerekirse)
         # text = re.sub(r'https?://[^\s]+', '[URL]', text)
-        
+
         return text
 
     def _convert_tools_to_genai(
@@ -278,10 +278,10 @@ class VertexAIProvider(BaseLLMProvider):
                         content = msg.get("content", "")
                         if not content or role == "system":
                             continue
-                        
+
                         # 🔥 Image URL'leri temizle
                         content = self._sanitize_prompt_for_gemini(content)
-                        
+
                         genai_role = (
                             "model" if role in ["assistant", "model"] else "user"
                         )
@@ -318,24 +318,24 @@ class VertexAIProvider(BaseLLMProvider):
                 try:
                     safety_settings = [
                         genai_types.SafetySetting(
-                            category="HARM_CATEGORY_HARASSMENT",
-                            threshold="BLOCK_NONE"
+                            category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"
                         ),
                         genai_types.SafetySetting(
-                            category="HARM_CATEGORY_HATE_SPEECH",
-                            threshold="BLOCK_NONE"
+                            category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"
                         ),
                         genai_types.SafetySetting(
                             category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            threshold="BLOCK_NONE"
+                            threshold="BLOCK_NONE",
                         ),
                         genai_types.SafetySetting(
                             category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                            threshold="BLOCK_NONE"
+                            threshold="BLOCK_NONE",
                         ),
                     ]
                     config_dict["safety_settings"] = safety_settings
-                    logger.info(f"✅ Safety settings added: BLOCK_NONE - All filters disabled")
+                    logger.info(
+                        f"✅ Safety settings added: BLOCK_NONE - All filters disabled"
+                    )
                 except Exception as safety_error:
                     logger.warning(f"⚠️ Could not add safety settings: {safety_error}")
 
@@ -366,32 +366,50 @@ class VertexAIProvider(BaseLLMProvider):
                 # But actually tools should be passed separately to generate_content()
                 # Let's check the actual API signature...
                 if genai_tools:
-                    logger.info(f"🔍 DEBUG - Adding tools to CONFIG (not kwargs): {genai_tools}")
+                    logger.info(
+                        f"🔍 DEBUG - Adding tools to CONFIG (not kwargs): {genai_tools}"
+                    )
                     # Try adding tools to config dict instead
                     config_dict["tools"] = genai_tools
                     generate_kwargs["config"] = config_dict
 
                 if system_instruction:
-                    logger.info(f"🔍 DEBUG - Adding system_instruction: {system_instruction[:100]}...")
+                    logger.info(
+                        f"🔍 DEBUG - Adding system_instruction: {system_instruction[:100]}..."
+                    )
                     generate_kwargs["system_instruction"] = system_instruction
 
-                logger.info(f"🔍 DEBUG - Final generate_kwargs keys: {generate_kwargs.keys()}")
-                logger.info(f"🔍 DEBUG - generate_kwargs['config']: {generate_kwargs.get('config')}")
-                
+                logger.info(
+                    f"🔍 DEBUG - Final generate_kwargs keys: {generate_kwargs.keys()}"
+                )
+                logger.info(
+                    f"🔍 DEBUG - generate_kwargs['config']: {generate_kwargs.get('config')}"
+                )
+
                 try:
                     response = self.client.models.generate_content(**generate_kwargs)
-                    
+
                     # 🔍 DEBUG: Log yanıtın tam yapısı
                     logger.info(f"🔍 DEBUG - Response type: {type(response)}")
-                    logger.info(f"🔍 DEBUG - Response has candidates: {hasattr(response, 'candidates')}")
-                    if hasattr(response, 'candidates'):
-                        logger.info(f"🔍 DEBUG - Candidates count: {len(response.candidates) if response.candidates else 0}")
-                    if hasattr(response, 'prompt_feedback'):
-                        logger.info(f"🔍 DEBUG - Prompt feedback: {response.prompt_feedback}")
-                    
+                    logger.info(
+                        f"🔍 DEBUG - Response has candidates: {hasattr(response, 'candidates')}"
+                    )
+                    if hasattr(response, "candidates"):
+                        logger.info(
+                            f"🔍 DEBUG - Candidates count: {len(response.candidates) if response.candidates else 0}"
+                        )
+                    if hasattr(response, "prompt_feedback"):
+                        logger.info(
+                            f"🔍 DEBUG - Prompt feedback: {response.prompt_feedback}"
+                        )
+
                 except Exception as api_error:
-                    logger.error(f"❌ API call failed with error: {type(api_error).__name__}: {api_error}")
-                    logger.error(f"❌ generate_kwargs that caused error: {generate_kwargs}")
+                    logger.error(
+                        f"❌ API call failed with error: {type(api_error).__name__}: {api_error}"
+                    )
+                    logger.error(
+                        f"❌ generate_kwargs that caused error: {generate_kwargs}"
+                    )
                     raise
 
                 # 5. YANITI DOĞRU ŞEKİLDE İŞLE
@@ -401,30 +419,44 @@ class VertexAIProvider(BaseLLMProvider):
                 # 🔥 IMPROVED ERROR HANDLING: Gemini'den yanıt gelmezse detaylı hata ver
                 if not response.candidates:
                     error_msg = "No candidates returned from Gemini"
-                    
+
                     # Prompt'u logla (engellenme sebebini anlamak için)
                     logger.error(f"❌ BLOCKED PROMPT: {request.prompt[:500]}...")
-                    if hasattr(request, 'system_prompt') and request.system_prompt:
-                        logger.error(f"❌ SYSTEM PROMPT: {request.system_prompt[:200]}...")
-                    
+                    if hasattr(request, "system_prompt") and request.system_prompt:
+                        logger.error(
+                            f"❌ SYSTEM PROMPT: {request.system_prompt[:200]}..."
+                        )
+
                     # Prompt feedback varsa kontrol et (block reason)
-                    if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
+                    if (
+                        hasattr(response, "prompt_feedback")
+                        and response.prompt_feedback
+                    ):
                         feedback = response.prompt_feedback
                         logger.error(f"❌ Prompt feedback: {feedback}")
-                        
-                        if hasattr(feedback, 'block_reason') and feedback.block_reason:
+
+                        if hasattr(feedback, "block_reason") and feedback.block_reason:
                             error_msg += f" - Blocked: {feedback.block_reason}"
-                            logger.error(f"❌ Block reason details: {feedback.block_reason}")
-                            
-                        if hasattr(feedback, 'safety_ratings') and feedback.safety_ratings:
-                            logger.error(f"❌ Safety ratings: {feedback.safety_ratings}")
+                            logger.error(
+                                f"❌ Block reason details: {feedback.block_reason}"
+                            )
+
+                        if (
+                            hasattr(feedback, "safety_ratings")
+                            and feedback.safety_ratings
+                        ):
+                            logger.error(
+                                f"❌ Safety ratings: {feedback.safety_ratings}"
+                            )
                             for rating in feedback.safety_ratings:
-                                logger.error(f"   - {rating.category}: {rating.probability}")
-                    
+                                logger.error(
+                                    f"   - {rating.category}: {rating.probability}"
+                                )
+
                     # Yanıtın tüm detaylarını logla
                     logger.error(f"❌ Full response object attributes: {dir(response)}")
                     logger.error(f"❌ Response details: {response}")
-                    
+
                     raise GenerationError(error_msg, "vertexai")
 
                 first_candidate = response.candidates[0]
